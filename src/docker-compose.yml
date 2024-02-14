@@ -1,0 +1,132 @@
+version: '3.9'
+
+services:
+  frontend-service:
+    build: ./frontend/
+    develop:
+      watch:
+        - action: rebuild
+          files:
+            - ./frontend/**/*.go
+            - ./frontend/go.mod
+            - ./frontend/go.sum
+    env_file:
+      - ./frontend/.env
+      # - ./frontend/.env.development
+      # - ./frontend/.env.local
+      # - ./frontend/.env.development.local
+    depends_on:
+      # redpanda-0:
+      #   condition: service_started
+      postgres:
+        condition: service_healthy
+      # redis:
+      #   condition: service_healthy
+      vault:
+        condition: service_started # service_healthy
+    networks:
+      - assessment-network
+    ports:
+      - 8080:8080
+
+  worker-service:
+    build: ./worker/
+    develop:
+      watch:
+        - action: rebuild
+          files:
+            - ./worker/**/*.go
+            - ./worker/go.mod
+            - ./worker/go.sum
+    env_file:
+      - ./worker/.env
+      # - ./worker/.env.development
+      # - ./worker/.env.local
+      # - ./worker/.env.development.local
+    depends_on:
+      # redpanda-0:
+      #   condition: service_started
+      postgres:
+        condition: service_healthy
+      # redis:
+      #   condition: service_healthy
+      vault:
+        condition: service_started # service_healthy
+    networks:
+      - assessment-network
+
+  # redpanda-0:
+  #   command:
+  #     - redpanda
+  #     - start
+  #     - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+  #     # Address the broker advertises to clients that connect to the Kafka API.
+  #     # Use the internal addresses to connect to the Redpanda brokers'
+  #     # from inside the same Docker network.
+  #     # Use the external addresses to connect to the Redpanda brokers'
+  #     # from outside the Docker network.
+  #     - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
+  #     - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+  #     # Address the broker advertises to clients that connect to the HTTP Proxy.
+  #     - --advertise-pandaproxy-addr internal://redpanda-0:8082,external://localhost:18082
+  #     - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+  #     # Redpanda brokers use the RPC API to communicate with eachother internally.
+  #     - --rpc-addr redpanda-0:33145
+  #     - --advertise-rpc-addr redpanda-0:33145
+  #     # Tells Seastar (the framework Redpanda uses under the hood) to use 1 core on the system.
+  #     - --smp 1
+  #     # The amount of memory to make available to Redpanda.
+  #     - --memory 1G
+  #     # Mode dev-container uses well-known configuration properties for development in containers.
+  #     - --mode dev-container
+  #     # enable logs for warning.
+  #     - --default-log-level=warn
+  #   image: docker.redpanda.com/redpandadata/redpanda:latest
+  #   volumes:
+  #     - redpanda-0:/var/lib/redpanda/data
+  #   networks:
+  #     - assessment-network
+  #   ports:
+  #     - 18081:18081
+  #     - 18082:18082
+  #     - 19092:19092
+  #     - 19644:9644
+
+  postgres:
+    image: postgres:latest
+    environment:
+      PGUSER: postgres
+      POSTGRES_PASSWORD: s3cr3t
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # volumes:
+    #   - ./resources/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - assessment-network
+    ports:
+      - 5432:5432
+    expose:
+      - 5432
+
+  # redis:
+  #   image: redis/redis-stack:latest
+  #   healthcheck:
+  #     test: [ "CMD", "redis-cli", "ping" ]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #   networks:
+  #     - assessment-network
+  #   ports:
+  #     - 6379:6379
+  #     - 6380:8001
+
+# volumes:
+#   redpanda-0: null
+
+networks:
+  assessment-network:
+    driver: bridge
